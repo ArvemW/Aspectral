@@ -1,4 +1,4 @@
-package arvem.Aspectral;
+package arvem.aspectral;
 
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
@@ -11,14 +11,10 @@ import javax.annotation.Nonnull;
  * This is an example command that will simply print the name of the plugin in chat when used.
  */
 public class AspectCommand extends CommandBase {
-    private final String pluginName;
-    private final String pluginVersion;
 
-    public AspectCommand(String pluginName, String pluginVersion) {
+    public AspectCommand() {
         super("aspect", "Sets an entity's aspect.");
         this.setPermissionGroup(GameMode.Creative);
-        this.pluginName = pluginName;
-        this.pluginVersion = pluginVersion;
         //TODO: Add arguments and functionality
     }
 

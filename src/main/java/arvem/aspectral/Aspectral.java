@@ -1,6 +1,7 @@
-package arvem.Aspectral;
+package arvem.aspectral;
 
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 
@@ -22,9 +23,8 @@ public class Aspectral extends JavaPlugin {
     @Override
     protected void setup() {
         try {
-
+            this.getCommandRegistry().registerCommand(new AspectCommand());
             LOGGER.atInfo().log("Aspectral loaded successfully!");
-
         } catch (Exception e) {
             LOGGER.atSevere().log("Failed to load Aspectral: %s", e.getMessage());
             throw e;
