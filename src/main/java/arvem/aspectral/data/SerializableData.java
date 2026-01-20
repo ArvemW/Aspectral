@@ -134,6 +134,22 @@ public class SerializableData {
         return Set.copyOf(dataFields.keySet());
     }
 
+    /**
+     * Create an instance with all default values.
+     * Fields without defaults will be set to null.
+     */
+    public Instance createDefault() {
+        Instance instance = new Instance();
+        dataFields.forEach((name, field) -> {
+            if (field.hasDefault()) {
+                instance.set(name, field.getDefault(instance));
+            } else {
+                instance.set(name, null);
+            }
+        });
+        return instance;
+    }
+
     public Field<?> getField(String fieldName) {
         if(!dataFields.containsKey(fieldName)) {
             throw new IllegalArgumentException("SerializableData contains no field with name \"" + fieldName + "\".");

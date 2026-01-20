@@ -1,4 +1,4 @@
-package arvem.aspectral;
+package arvem.aspectral.command;
 
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;

@@ -1,0 +1,125 @@
+package arvem.aspectral.abilities.factory;
+
+import arvem.aspectral.abilities.Ability;
+import arvem.aspectral.abilities.AbilityType;
+import arvem.aspectral.api.LivingEntity;
+import arvem.aspectral.data.AspectAbilitiesDataTypes;
+import arvem.aspectral.data.SerializableData;
+import com.google.gson.JsonObject;
+import io.netty.buffer.ByteBuf;
+
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+/**
+ * Factory for creating abilities from JSON definitions.
+ * Each ability type has a factory that knows how to create instances
+ * from serialized data.
+ *
+ * @param <A> The type of Ability this factory creates
+ */
+public class AbilityFactory<A extends Ability> implements Factory {
+
+    private final String id;
+    protected SerializableData data;
+    protected Function<SerializableData.Instance, BiFunction<AbilityType<A>, LivingEntity, A>> factoryConstructor;
+
+    private boolean hasConditions = false;
+
+    public AbilityFactory(String id, SerializableData data,
+                          Function<SerializableData.Instance, BiFunction<AbilityType<A>, LivingEntity, A>> factoryConstructor) {
+        this.id = id;
+        this.data = data;
+        this.factoryConstructor = factoryConstructor;
+    }
+
+    /**
+     * Allow this ability to have conditions attached.
+     */
+    public AbilityFactory<A> allowCondition() {
+        if (!hasConditions) {
+            hasConditions = true;
+            data.add("condition", AspectAbilitiesDataTypes.ENTITY_CONDITION, null);
+        }
+        return this;
+    }
+
+    @Override
+    public String getSerializerId() {
+        return id;
+    }
+
+    @Override
+    public SerializableData getSerializableData() {
+        return data;
+    }
+
+    /**
+     * An instance of this factory with bound data.
+     */
+    public class Instance implements BiFunction<AbilityType<A>, LivingEntity, A> {
+
+        private final SerializableData.Instance dataInstance;
+
+        private Instance(SerializableData.Instance data) {
+            this.dataInstance = data;
+        }
+
+        @Override
+        public A apply(AbilityType<A> abilityType, LivingEntity entity) {
+            BiFunction<AbilityType<A>, LivingEntity, A> constructor = factoryConstructor.apply(dataInstance);
+            A ability = constructor.apply(abilityType, entity);
+
+            if (hasConditions && dataInstance.isPresent("condition")) {
+                ability.addCondition(dataInstance.get("condition"));
+            }
+
+            return ability;
+        }
+
+        public void write(ByteBuf buf) {
+            // Write the factory ID first
+            byte[] idBytes = id.getBytes();
+            buf.writeInt(idBytes.length);
+            buf.writeBytes(idBytes);
+            // Then write the data
+            data.write(buf, dataInstance);
+        }
+
+        public SerializableData.Instance getDataInstance() {
+            return dataInstance;
+        }
+
+        public AbilityFactory<A> getFactory() {
+            return AbilityFactory.this;
+        }
+
+        public JsonObject toJson() {
+            JsonObject jsonObject = data.write(dataInstance);
+            jsonObject.addProperty("type", id);
+            return jsonObject;
+        }
+    }
+
+    /**
+     * Read an instance from JSON.
+     */
+    public Instance read(JsonObject json) {
+        return new Instance(data.read(json));
+    }
+
+    /**
+     * Read an instance from a network buffer.
+     */
+    public Instance read(ByteBuf buffer) {
+        return new Instance(data.read(buffer));
+    }
+
+    /**
+     * Create an instance with default values.
+     * Useful for command-based ability granting.
+     */
+    public Instance createDefault() {
+        return new Instance(data.createDefault());
+    }
+}

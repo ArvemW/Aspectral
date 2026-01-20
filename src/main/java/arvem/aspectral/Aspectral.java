@@ -1,7 +1,7 @@
 package arvem.aspectral;
 
+import arvem.aspectral.command.AspectCommand;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 
@@ -23,12 +23,28 @@ public class Aspectral extends JavaPlugin {
     @Override
     protected void setup() {
         try {
+            // Initialize AspectAbilities system
+            AspectAbilities.initialize(this);
+
+            // Register commands
             this.getCommandRegistry().registerCommand(new AspectCommand());
+            AspectAbilities.registerCommands(this);
+
             LOGGER.atInfo().log("Aspectral loaded successfully!");
         } catch (Exception e) {
             LOGGER.atSevere().log("Failed to load Aspectral: %s", e.getMessage());
             throw e;
         }
+    }
+
+    @Override
+    protected void shutdown() {
+        LOGGER.atInfo().log("Shutting down Aspectral...");
+
+        // Save all player abilities before shutdown
+        AspectAbilities.shutdown();
+
+        LOGGER.atInfo().log("Aspectral shutdown complete.");
     }
 
     // Accessors
