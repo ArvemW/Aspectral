@@ -33,3 +33,5 @@ build/
 
 ### Misc ###
 /run/
+/REFERENCE-hytale-server
+/REFERENCE-origins-fabric-1.20

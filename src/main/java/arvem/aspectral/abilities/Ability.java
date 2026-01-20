@@ -131,6 +131,44 @@ public class Ability {
     public void onRespawn() {
     }
 
+    // ========================================
+    // Event hooks (new additions)
+    // ========================================
+
+    /**
+     * Called when a key is pressed.
+     * @param key The key identifier
+     */
+    public void onKeyPressed(String key) {
+    }
+
+    /**
+     * Called when the entity takes damage.
+     * @param event Damage event (platform-specific wrapper)
+     * @return True to cancel the event
+     */
+    public boolean onDamage(Object event) {
+        return false;
+    }
+
+    /**
+     * Called when the entity deals damage.
+     * @param event Damage event (platform-specific wrapper)
+     * @return True to cancel the event
+     */
+    public boolean onAttack(Object event) {
+        return false;
+    }
+
+    /**
+     * Called when the entity moves.
+     * @param event Move event (platform-specific wrapper)
+     * @return True to cancel the event
+     */
+    public boolean onMove(Object event) {
+        return false;
+    }
+
     /**
      * Check if this ability is currently active (all conditions pass).
      */

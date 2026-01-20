@@ -3,13 +3,19 @@ package arvem.aspectral;
 import arvem.aspectral.abilities.factory.AbilityFactories;
 import arvem.aspectral.abilities.factory.action.EntityActions;
 import arvem.aspectral.abilities.factory.condition.EntityConditions;
+import arvem.aspectral.aspect.AspectLoader;
+import arvem.aspectral.aspect.AspectRegistry;
 import arvem.aspectral.command.AbilityCommand;
+import arvem.aspectral.command.AspectCommand;
 import arvem.aspectral.component.AbilityHolderComponent;
+import arvem.aspectral.component.PlayerAspectComponent;
 import arvem.aspectral.persistence.AbilityPersistenceManager;
 import arvem.aspectral.registry.AbilityRegistry;
 import arvem.aspectral.util.Scheduler;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+
+import java.nio.file.Path;
 
 /**
  * AspectAbilities - A power/ability system for Hytale.
@@ -30,15 +36,27 @@ public final class AspectAbilities {
     // Ability holder component for entity ability management
     private final AbilityHolderComponent.Manager componentManager;
 
+    // Player aspect component for storing player's chosen aspect
+    private final PlayerAspectComponent.Manager playerAspectManager;
+
     // Registry for ability types
     private final AbilityRegistry abilityRegistry;
+
+    // Registry for aspects (origins)
+    private final AspectRegistry aspectRegistry;
+
+    // Loader for aspect JSON files
+    private final AspectLoader aspectLoader;
 
     // Persistence manager for saving/loading abilities
     private final AbilityPersistenceManager persistenceManager;
 
     private AspectAbilities(JavaPlugin pluginInstance) {
         this.componentManager = new AbilityHolderComponent.Manager();
+        this.playerAspectManager = new PlayerAspectComponent.Manager();
         this.abilityRegistry = new AbilityRegistry();
+        this.aspectRegistry = new AspectRegistry();
+        this.aspectLoader = new AspectLoader(aspectRegistry, abilityRegistry);
         this.persistenceManager = new AbilityPersistenceManager(pluginInstance);
     }
 
@@ -62,6 +80,9 @@ public final class AspectAbilities {
         instance.registerConditions();
         instance.registerActions();
 
+        // Load aspects from JSON
+        instance.loadAspects(pluginInstance);
+
         // Register persistence events
         instance.persistenceManager.registerEvents(pluginInstance);
 
@@ -84,6 +105,7 @@ public final class AspectAbilities {
      */
     public static void registerCommands(Aspectral plugin) {
         plugin.getCommandRegistry().registerCommand(new AbilityCommand());
+        plugin.getCommandRegistry().registerCommand(new AspectCommand());
         LOGGER.atInfo().log("AspectAbilities commands registered.");
     }
 
@@ -102,6 +124,17 @@ public final class AspectAbilities {
         LOGGER.atFine().log("Registered entity actions");
     }
 
+    private void loadAspects(JavaPlugin pluginInstance) {
+        // Load aspects from the plugin's data folder
+        // Server runs from the 'run' directory, so we use a relative path from there
+        Path aspectsDir = Path.of("plugins", "aspectral", "aspects");
+        LOGGER.atInfo().log("AspectLoader: starting load from: %s", aspectsDir.toAbsolutePath());
+        LOGGER.atInfo().log("Directory exists: %s", java.nio.file.Files.exists(aspectsDir));
+        aspectLoader.loadFromDirectory(aspectsDir);
+        LOGGER.atInfo().log("AspectLoader: finished load. Loaded %d aspect(s)", aspectRegistry.size());
+        LOGGER.atInfo().log("AspectRegistry instance after load, hash: %d", System.identityHashCode(aspectRegistry));
+    }
+
     /**
      * Called each server tick to update abilities.
      */
@@ -114,9 +147,10 @@ public final class AspectAbilities {
 
     /**
      * Create a namespaced identifier string.
+     * Uses lowercase namespace to match JSON convention.
      */
     public static String identifier(String path) {
-        return Aspectral.getInstance().getManifest().getName() + ":" + path;
+        return Aspectral.getInstance().getManifest().getName().toLowerCase() + ":" + path;
     }
 
     // Accessors
@@ -137,8 +171,20 @@ public final class AspectAbilities {
         return abilityRegistry;
     }
 
+    public AspectRegistry getAspectRegistry() {
+        return aspectRegistry;
+    }
+
+    public AspectLoader getAspectLoader() {
+        return aspectLoader;
+    }
+
     public AbilityHolderComponent.Manager getComponentManager() {
         return componentManager;
+    }
+
+    public PlayerAspectComponent.Manager getPlayerAspectManager() {
+        return playerAspectManager;
     }
 
     public AbilityPersistenceManager getPersistenceManager() {

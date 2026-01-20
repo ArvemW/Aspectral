@@ -98,6 +98,70 @@ public class AbilityHolderComponent {
     }
 
     /**
+     * Add an ability instance directly (used when creating from aspects).
+     */
+    public void addAbility(Ability ability, String source) {
+        String id = ability.getType().getIdentifier();
+
+        // Track the source
+        abilitySources.computeIfAbsent(id, k -> new HashSet<>()).add(source);
+
+        // If ability already exists, just add the source
+        if (abilities.containsKey(id)) {
+            return;
+        }
+
+        // Store the ability instance
+        abilities.put(id, ability);
+        tickingDirty = true;
+
+        ability.onAdded(false);
+        ability.onGained();
+
+        LOGGER.atFine().log("Added ability %s to entity %s from source %s", id, entity, source);
+    }
+
+    /**
+     * Remove an ability instance directly.
+     */
+    public void removeAbility(Ability ability, String source) {
+        String id = ability.getType().getIdentifier();
+
+        Set<String> sources = abilitySources.get(id);
+        if (sources == null) {
+            return;
+        }
+
+        sources.remove(source);
+
+        // If no sources remain, fully remove the ability
+        if (sources.isEmpty()) {
+            abilitySources.remove(id);
+            Ability removed = abilities.remove(id);
+            if (removed != null) {
+                removed.onLost();
+                removed.onRemoved(false);
+                tickingDirty = true;
+                LOGGER.atFine().log("Removed ability %s from entity %s", id, entity);
+            }
+        }
+    }
+
+    /**
+     * Clear all abilities.
+     */
+    public void clearAbilities() {
+        for (Ability ability : new ArrayList<>(abilities.values())) {
+            ability.onLost();
+            ability.onRemoved(false);
+        }
+        abilities.clear();
+        abilitySources.clear();
+        tickingDirty = true;
+        LOGGER.atFine().log("Cleared all abilities from entity %s", entity);
+    }
+
+    /**
      * Remove all abilities granted by a specific source.
      *
      * @return The number of abilities fully removed

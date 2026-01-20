@@ -79,19 +79,60 @@ public class AbilityCommand extends AbstractCommandCollection {
         @Override
         protected void execute(@NonNull CommandContext commandContext, @NonNull Store<EntityStore> store,
                               @NonNull Ref<EntityStore> ref, @NonNull PlayerRef playerRef, @NonNull World world) {
-            AbilityRegistry registry = AspectAbilities.getInstance().getAbilityRegistry();
+            var aspectRegistry = AspectAbilities.getInstance().getAspectRegistry();
 
-            // List ability factories (these are the ability types that can be used)
-            var factoryIds = registry.getAllAbilityFactoryIds();
+            // Debug logging
+            AspectAbilities.getLogger().atInfo().log("Command: AspectRegistry instance hash: %d", System.identityHashCode(aspectRegistry));
+            AspectAbilities.getLogger().atInfo().log("Command: AspectRegistry size: %d", aspectRegistry.size());
 
-            if (factoryIds.isEmpty()) {
-                playerRef.sendMessage(Message.raw("No ability types registered.").color(COLOR_RED));
+            // List all abilities defined in aspects
+            var aspects = aspectRegistry.getAll();
+
+            if (aspects.isEmpty()) {
+                AspectAbilities.getLogger().atWarning().log("Command: No aspects found in registry!");
+                playerRef.sendMessage(Message.raw("No aspects registered.").color(COLOR_RED));
                 return;
             }
 
-            playerRef.sendMessage(Message.raw("=== Available Abilities (" + factoryIds.size() + ") ===").color(COLOR_GOLD));
-            for (String id : factoryIds) {
-                playerRef.sendMessage(Message.raw("  - ").color(COLOR_GRAY).insert(Message.raw(id).color(COLOR_WHITE)));
+            // Count total abilities across all aspects
+            int totalAbilities = 0;
+            for (var aspect : aspects) {
+                totalAbilities += aspect.getAbilityCount();
+            }
+
+            if (totalAbilities == 0) {
+                playerRef.sendMessage(Message.raw("No abilities defined in aspects.").color(COLOR_RED));
+                return;
+            }
+
+            playerRef.sendMessage(Message.raw("=== Available Abilities (" + totalAbilities + ") ===").color(COLOR_GOLD));
+
+            // List abilities per aspect
+            for (var aspect : aspects) {
+                int abilityCount = aspect.getAbilityCount();
+                if (abilityCount == 0) {
+                    continue; // Skip aspects with no abilities
+                }
+
+                // Show aspect header
+                playerRef.sendMessage(Message.raw("  " + aspect.getIdentifier() + " (" + abilityCount + "):").color(COLOR_YELLOW));
+
+                // List each ability definition
+                for (int i = 0; i < abilityCount; i++) {
+                    var definition = aspect.getAbilityDefinition(i);
+                    if (definition == null) {
+                        continue;
+                    }
+
+                    String abilityTypeId = definition.abilityType.getIdentifier();
+                    String fullAbilityId = aspect.getIdentifier() + ":" + i;
+
+                    playerRef.sendMessage(Message.raw("    - ").color(COLOR_GRAY)
+                            .insert(Message.raw(fullAbilityId).color(COLOR_WHITE))
+                            .insert(Message.raw(" (").color(COLOR_GRAY))
+                            .insert(Message.raw(abilityTypeId).color(COLOR_GREEN))
+                            .insert(Message.raw(")").color(COLOR_GRAY)));
+                }
             }
         }
     }
@@ -102,8 +143,7 @@ public class AbilityCommand extends AbstractCommandCollection {
         }
 
         RequiredArg<PlayerRef> targetPlayerArg = this.withRequiredArg("player", "Target player", ArgTypes.PLAYER_REF);
-        RequiredArg<String> abilityArg = this.withRequiredArg("ability", "Ability ID", ArgTypes.STRING);
-        OptionalArg<String> sourceArg = this.withOptionalArg("source", "Source of ability", ArgTypes.STRING);
+        RequiredArg<String> abilityArg = this.withRequiredArg("ability", "Ability ID (aspect:index)", ArgTypes.STRING);
 
         @Override
         @SuppressWarnings({"rawtypes", "unchecked"})
@@ -111,43 +151,61 @@ public class AbilityCommand extends AbstractCommandCollection {
                               @NonNull Ref<EntityStore> ref, @NonNull PlayerRef playerRef, @NonNull World world) {
             PlayerRef targetPlayerRef = targetPlayerArg.get(commandContext);
             String abilityId = abilityArg.get(commandContext);
-            String source = sourceArg.get(commandContext);
-            if (source == null) source = "command";
 
-            AbilityRegistry registry = AspectAbilities.getInstance().getAbilityRegistry();
-
-            // First check if there's a registered AbilityType
-            AbilityType abilityType = registry.getAbilityType(abilityId);
-
-            // If not, try to create one from a factory
-            if (abilityType == null) {
-                var factory = registry.getAbilityFactory(abilityId);
-                if (factory == null) {
-                    playerRef.sendMessage(Message.raw("Ability not found: ").color(COLOR_RED)
-                            .insert(Message.raw(abilityId).color(COLOR_WHITE)));
-                    return;
-                }
-
-                // Create an AbilityType from the factory with default values
-                var factoryInstance = factory.createDefault();
-                abilityType = new AbilityType(abilityId, factoryInstance);
+            // Parse aspect:index format
+            String[] parts = abilityId.split(":");
+            if (parts.length != 3) { // Expected: namespace:name:index
+                playerRef.sendMessage(Message.raw("Invalid ability format. Use: ").color(COLOR_RED)
+                        .insert(Message.raw("aspectId:index").color(COLOR_WHITE))
+                        .insert(Message.raw(" (e.g., aspectral:skywalker:0)").color(COLOR_GRAY)));
+                return;
             }
 
-            // Create adapter and grant ability
+            String aspectId = parts[0] + ":" + parts[1]; // Reconstruct aspect ID
+            int index;
+            try {
+                index = Integer.parseInt(parts[2]);
+            } catch (NumberFormatException e) {
+                playerRef.sendMessage(Message.raw("Invalid index: ").color(COLOR_RED)
+                        .insert(Message.raw(parts[2]).color(COLOR_WHITE)));
+                return;
+            }
+
+            // Look up the aspect
+            var aspectRegistry = AspectAbilities.getInstance().getAspectRegistry();
+            var aspect = aspectRegistry.get(aspectId);
+            if (aspect == null) {
+                playerRef.sendMessage(Message.raw("Unknown aspect: ").color(COLOR_RED)
+                        .insert(Message.raw(aspectId).color(COLOR_WHITE)));
+                return;
+            }
+
+            // Get the ability definition
+            var definition = aspect.getAbilityDefinition(index);
+            if (definition == null) {
+                playerRef.sendMessage(Message.raw("Invalid ability index: ").color(COLOR_RED)
+                        .insert(Message.raw(String.valueOf(index)).color(COLOR_WHITE))
+                        .insert(Message.raw(" for aspect ").color(COLOR_RED))
+                        .insert(Message.raw(aspectId).color(COLOR_WHITE)));
+                return;
+            }
+
+            // Create adapter
             HytalePlayerAdapter adapter = createPlayerAdapter(targetPlayerRef, store);
-            AbilityHolderComponent component = AbilityHolderComponent.getOrCreate(adapter);
-            boolean added = component.addAbility(abilityType, source);
 
-            if (added) {
-                playerRef.sendMessage(Message.raw("Granted ").color(COLOR_GREEN)
-                        .insert(Message.raw(abilityId).color(COLOR_WHITE))
-                        .insert(Message.raw(" to ").color(COLOR_GREEN))
-                        .insert(Message.raw(targetPlayerRef.getUsername()).color(COLOR_WHITE)));
-            } else {
-                playerRef.sendMessage(Message.raw(targetPlayerRef.getUsername()).color(COLOR_YELLOW)
-                        .insert(Message.raw(" already has ").color(COLOR_YELLOW))
-                        .insert(Message.raw(abilityId).color(COLOR_WHITE)));
-            }
+            // Create ability instance
+            Ability ability = definition.abilityType.create(adapter, definition.data);
+
+            // Add to holder
+            AbilityHolderComponent component = AbilityHolderComponent.getOrCreate(adapter);
+            component.addAbility(ability, "command");
+
+            playerRef.sendMessage(Message.raw("Granted ").color(COLOR_GREEN)
+                    .insert(Message.raw(abilityId).color(COLOR_WHITE))
+                    .insert(Message.raw(" (").color(COLOR_GRAY))
+                    .insert(Message.raw(definition.abilityType.getIdentifier()).color(COLOR_YELLOW))
+                    .insert(Message.raw(") to ").color(COLOR_GREEN))
+                    .insert(Message.raw(targetPlayerRef.getUsername()).color(COLOR_WHITE)));
         }
     }
 
@@ -157,16 +215,13 @@ public class AbilityCommand extends AbstractCommandCollection {
         }
 
         RequiredArg<PlayerRef> targetPlayerArg = this.withRequiredArg("player", "Target player", ArgTypes.PLAYER_REF);
-        RequiredArg<String> abilityArg = this.withRequiredArg("ability", "Ability ID", ArgTypes.STRING);
-        OptionalArg<String> sourceArg = this.withOptionalArg("source", "Source of ability", ArgTypes.STRING);
+        RequiredArg<Integer> indexArg = this.withRequiredArg("index", "Ability index", ArgTypes.INTEGER);
 
         @Override
         protected void execute(@NonNull CommandContext commandContext, @NonNull Store<EntityStore> store,
                               @NonNull Ref<EntityStore> ref, @NonNull PlayerRef playerRef, @NonNull World world) {
             PlayerRef targetPlayerRef = targetPlayerArg.get(commandContext);
-            String abilityId = abilityArg.get(commandContext);
-            String source = sourceArg.get(commandContext);
-            if (source == null) source = "command";
+            int index = indexArg.get(commandContext);
 
             // Create adapter and check for ability
             HytalePlayerAdapter adapter = createPlayerAdapter(targetPlayerRef, store);
@@ -178,26 +233,27 @@ public class AbilityCommand extends AbstractCommandCollection {
                 return;
             }
 
-            // Find the ability by ID in the player's abilities
-            Ability abilityToRemove = null;
-            for (Ability ability : component.getAbilities()) {
-                if (ability.getType().getIdentifier().equals(abilityId)) {
-                    abilityToRemove = ability;
-                    break;
-                }
-            }
-
-            if (abilityToRemove == null) {
-                playerRef.sendMessage(Message.raw(targetPlayerRef.getUsername()).color(COLOR_RED)
-                        .insert(Message.raw(" doesn't have ").color(COLOR_RED))
-                        .insert(Message.raw(abilityId).color(COLOR_WHITE)));
+            // Get abilities list
+            List<Ability> abilities = component.getAbilities();
+            if (index < 0 || index >= abilities.size()) {
+                playerRef.sendMessage(Message.raw("Invalid index: ").color(COLOR_RED)
+                        .insert(Message.raw(String.valueOf(index)).color(COLOR_WHITE))
+                        .insert(Message.raw(". Player has ").color(COLOR_RED))
+                        .insert(Message.raw(String.valueOf(abilities.size())).color(COLOR_WHITE))
+                        .insert(Message.raw(" abilities.").color(COLOR_RED)));
                 return;
             }
 
-            component.removeAbility(abilityToRemove.getType(), source);
-            playerRef.sendMessage(Message.raw("Revoked ").color(COLOR_GREEN)
-                    .insert(Message.raw(abilityId).color(COLOR_WHITE))
-                    .insert(Message.raw(" from ").color(COLOR_GREEN))
+            Ability abilityToRemove = abilities.get(index);
+            String abilityTypeId = abilityToRemove.getType().getIdentifier();
+
+            component.removeAbility(abilityToRemove, "command");
+
+            playerRef.sendMessage(Message.raw("Removed ability ").color(COLOR_GREEN)
+                    .insert(Message.raw(String.valueOf(index)).color(COLOR_YELLOW))
+                    .insert(Message.raw(" (").color(COLOR_GRAY))
+                    .insert(Message.raw(abilityTypeId).color(COLOR_WHITE))
+                    .insert(Message.raw(") from ").color(COLOR_GREEN))
                     .insert(Message.raw(targetPlayerRef.getUsername()).color(COLOR_WHITE)));
         }
     }
@@ -226,10 +282,15 @@ public class AbilityCommand extends AbstractCommandCollection {
 
             var abilities = component.getAbilities();
             playerRef.sendMessage(Message.raw("=== Abilities for " + targetPlayerRef.getUsername() + " (" + abilities.size() + ") ===").color(COLOR_GOLD));
-            for (Ability ability : abilities) {
+
+            for (int i = 0; i < abilities.size(); i++) {
+                Ability ability = abilities.get(i);
                 String statusColor = ability.isActive() ? COLOR_GREEN : COLOR_RED;
                 String statusSymbol = ability.isActive() ? "●" : "○";
-                playerRef.sendMessage(Message.raw("  " + statusSymbol + " ").color(statusColor)
+
+                playerRef.sendMessage(Message.raw("  [").color(COLOR_GRAY)
+                        .insert(Message.raw(String.valueOf(i)).color(COLOR_YELLOW))
+                        .insert(Message.raw("] " + statusSymbol + " ").color(statusColor))
                         .insert(Message.raw(ability.getType().getIdentifier()).color(COLOR_WHITE)));
             }
         }

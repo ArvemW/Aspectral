@@ -127,27 +127,44 @@ public class AbilityPersistenceManager {
             }
 
             HytalePlayerAdapter adapter = new HytalePlayerAdapter(player, playerRef, ref, store);
-            AbilityHolderComponent component = AbilityHolderComponent.get(adapter);
+            AbilityHolderComponent abilityComponent = AbilityHolderComponent.get(adapter);
 
-            if (component == null || component.getAbilities().isEmpty()) {
-                // Delete file if no abilities
+            // Also get the aspect component
+            var aspectComponent = AspectAbilities.getInstance().getPlayerAspectManager().get(adapter);
+
+            // If no abilities and no aspect, delete the file
+            if ((abilityComponent == null || abilityComponent.getAbilities().isEmpty()) &&
+                (aspectComponent == null || !aspectComponent.hasAspect())) {
                 Path playerFile = getPlayerFile(uuid);
                 Files.deleteIfExists(playerFile);
                 playerDataCache.remove(uuid);
-                LOGGER.atFine().log("No abilities to save for player %s", uuid);
+                LOGGER.atFine().log("No abilities or aspect to save for player %s", uuid);
                 return;
             }
 
-            // Serialize and save
-            JsonObject data = component.toJson();
+            // Create save data object
+            JsonObject data = new JsonObject();
+
+            // Save abilities
+            if (abilityComponent != null) {
+                data.add("abilities", abilityComponent.toJson());
+            }
+
+            // Save aspect ID
+            if (aspectComponent != null && aspectComponent.hasAspect()) {
+                data.add("aspect", aspectComponent.toJson());
+            }
+
             Path playerFile = getPlayerFile(uuid);
             Files.writeString(playerFile, GSON.toJson(data));
 
             // Update cache
             playerDataCache.put(uuid, data);
 
-            LOGGER.atInfo().log("Saved %d abilities for player %s",
-                component.getAbilities().size(), uuid);
+            int abilityCount = abilityComponent != null ? abilityComponent.getAbilities().size() : 0;
+            String aspectId = aspectComponent != null ? aspectComponent.getAspectId() : "none";
+            LOGGER.atInfo().log("Saved %d abilities and aspect %s for player %s",
+                abilityCount, aspectId, uuid);
 
         } catch (Exception e) {
             LOGGER.atWarning().log("Failed to save abilities for player %s: %s", uuid, e.getMessage());
@@ -163,6 +180,7 @@ public class AbilityPersistenceManager {
             if (player != null) {
                 HytalePlayerAdapter adapter = new HytalePlayerAdapter(player, playerRef, ref, store);
                 AspectAbilities.getInstance().getComponentManager().remove(adapter);
+                AspectAbilities.getInstance().getPlayerAspectManager().remove(adapter);
             }
         } catch (Exception e) {
             LOGGER.atFine().log("Error during cleanup for %s: %s", uuid, e.getMessage());
@@ -194,11 +212,35 @@ public class AbilityPersistenceManager {
 
             if (playerRef != null) {
                 HytalePlayerAdapter adapter = new HytalePlayerAdapter(player, playerRef, ref, store);
-                AbilityHolderComponent component = AbilityHolderComponent.getOrCreate(adapter);
-                component.fromJson(data);
 
-                LOGGER.atInfo().log("Loaded %d abilities for player %s",
-                    component.getAbilities().size(), uuid);
+                // Load aspect first (if present in new format)
+                if (data.has("aspect")) {
+                    var aspectComponent = AspectAbilities.getInstance().getPlayerAspectManager().getOrCreate(adapter);
+                    aspectComponent.fromJson(data.getAsJsonObject("aspect"));
+
+                    // Trigger onPlayerJoin to recreate abilities from aspect
+                    aspectComponent.onPlayerJoin();
+
+                    LOGGER.atInfo().log("Restored aspect %s for player %s",
+                        aspectComponent.getAspectId(), uuid);
+                }
+
+                // Then load any additional abilities (new format or old format)
+                if (data.has("abilities")) {
+                    // New format: abilities are nested under "abilities" key
+                    AbilityHolderComponent abilityComponent = AbilityHolderComponent.getOrCreate(adapter);
+                    abilityComponent.fromJson(data.getAsJsonObject("abilities"));
+
+                    LOGGER.atInfo().log("Loaded %d abilities for player %s",
+                        abilityComponent.getAbilities().size(), uuid);
+                } else if (data.has("abilities_list")) {
+                    // Old format: abilities are at root level
+                    AbilityHolderComponent abilityComponent = AbilityHolderComponent.getOrCreate(adapter);
+                    abilityComponent.fromJson(data);
+
+                    LOGGER.atInfo().log("Loaded %d abilities (old format) for player %s",
+                        abilityComponent.getAbilities().size(), uuid);
+                }
             } else {
                 LOGGER.atWarning().log("Could not get PlayerRef for player %s", uuid);
             }
@@ -214,16 +256,35 @@ public class AbilityPersistenceManager {
     public void saveAllPlayers() {
         LOGGER.atInfo().log("Saving all player abilities...");
 
-        for (AbilityHolderComponent component : AspectAbilities.getInstance().getComponentManager().getAll()) {
-            if (component.getEntity() instanceof HytalePlayerAdapter adapter) {
+        for (AbilityHolderComponent abilityComponent : AspectAbilities.getInstance().getComponentManager().getAll()) {
+            if (abilityComponent.getEntity() instanceof HytalePlayerAdapter adapter) {
                 UUID uuid = adapter.getUuid();
                 if (uuid != null) {
                     try {
-                        JsonObject data = component.toJson();
-                        if (!component.getAbilities().isEmpty()) {
+                        // Get aspect component
+                        var aspectComponent = AspectAbilities.getInstance().getPlayerAspectManager().get(adapter);
+
+                        // Create save data
+                        JsonObject data = new JsonObject();
+                        boolean hasData = false;
+
+                        // Add abilities
+                        if (!abilityComponent.getAbilities().isEmpty()) {
+                            data.add("abilities", abilityComponent.toJson());
+                            hasData = true;
+                        }
+
+                        // Add aspect
+                        if (aspectComponent != null && aspectComponent.hasAspect()) {
+                            data.add("aspect", aspectComponent.toJson());
+                            hasData = true;
+                        }
+
+                        // Save if we have any data
+                        if (hasData) {
                             Path playerFile = getPlayerFile(uuid);
                             Files.writeString(playerFile, GSON.toJson(data));
-                            LOGGER.atFine().log("Saved abilities for %s", uuid);
+                            LOGGER.atFine().log("Saved abilities and aspect for %s", uuid);
                         }
                     } catch (Exception e) {
                         LOGGER.atWarning().log("Failed to save abilities for %s: %s", uuid, e.getMessage());

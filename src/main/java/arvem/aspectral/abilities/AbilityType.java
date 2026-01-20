@@ -79,6 +79,24 @@ public class AbilityType<T extends Ability> {
         return ability;
     }
 
+    /**
+     * Create an instance of this ability for the given entity from JSON data.
+     * This allows creating ability instances with custom configuration.
+     * @param entity The entity this ability will be attached to
+     * @param data JSON data containing ability configuration
+     * @return A new ability instance configured with the provided data
+     */
+    public T create(LivingEntity entity, JsonObject data) {
+        // Read the data from JSON using the factory
+        AbilityFactory<T>.Instance jsonFactory = (AbilityFactory<T>.Instance) factory.getFactory().read(data);
+        T ability = jsonFactory.apply(this, entity);
+
+        ability.setSerializableData(factory.getFactory().getSerializableData());
+        ability.setDataInstance(jsonFactory.getDataInstance());
+
+        return ability;
+    }
+
     public boolean isHidden() {
         return this.hidden;
     }

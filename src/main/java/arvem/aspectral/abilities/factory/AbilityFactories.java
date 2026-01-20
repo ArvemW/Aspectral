@@ -108,5 +108,15 @@ public class AbilityFactories {
 
         // Multiple abilities container
         registry.registerAbilityFactory(MultipleAbility.createFactory());
+
+        // Launch ability (propel player upward)
+        var launchFactory = LaunchAbility.createFactory();
+        registry.registerAbilityFactory(launchFactory);
+        System.out.println("[DEBUG] Registered LaunchAbility factory: " + launchFactory.getSerializerId());
+
+        // Attribute modifier ability (modify single attribute)
+        var attrModFactory = AttributeModifierAbility.createFactory();
+        registry.registerAbilityFactory(attrModFactory);
+        System.out.println("[DEBUG] Registered AttributeModifierAbility factory: " + attrModFactory.getSerializerId());
     }
 }
