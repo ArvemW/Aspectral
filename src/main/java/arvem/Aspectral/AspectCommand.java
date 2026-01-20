@@ -1,4 +1,4 @@
-package com.example.exampleplugin;
+package arvem.Aspectral;
 
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
@@ -10,19 +10,20 @@ import javax.annotation.Nonnull;
 /**
  * This is an example command that will simply print the name of the plugin in chat when used.
  */
-public class ExampleCommand extends CommandBase {
+public class AspectCommand extends CommandBase {
     private final String pluginName;
     private final String pluginVersion;
 
-    public ExampleCommand(String pluginName, String pluginVersion) {
-        super("test", "Prints a test message from the " + pluginName + " plugin.");
-        this.setPermissionGroup(GameMode.Adventure); // Allows the command to be used by anyone, not just OP
+    public AspectCommand(String pluginName, String pluginVersion) {
+        super("aspect", "Sets an entity's aspect.");
+        this.setPermissionGroup(GameMode.Creative);
         this.pluginName = pluginName;
         this.pluginVersion = pluginVersion;
+        //TODO: Add arguments and functionality
     }
 
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
-        ctx.sendMessage(Message.raw("Hello from the " + pluginName + " v" + pluginVersion + " plugin!"));
+        ctx.sendMessage(Message.raw("This command doesn't do anything. Go fix it already!"));
     }
 }
