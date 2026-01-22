@@ -4,7 +4,7 @@ package arvem.aspectral.api;
  * Placeholder interface representing a server-side living entity in Hytale.
  * This should be replaced with the actual Hytale API class when available.
  * <p>
- * For now, this defines the expected interface for entities that can have abilities.
+ * For now, this defines the expected interface for entities that can have powers.
  */
 public interface LivingEntity {
 
@@ -88,3 +88,4 @@ public interface LivingEntity {
      */
     void addVelocity(float x, float y, float z);
 }
+

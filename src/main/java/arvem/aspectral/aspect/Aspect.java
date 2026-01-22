@@ -1,10 +1,10 @@
 package arvem.aspectral.aspect;
 
-import arvem.aspectral.abilities.Ability;
-import arvem.aspectral.abilities.AbilityType;
+import arvem.aspectral.powers.Power;
+import arvem.aspectral.powers.PowerDefinition;
 import arvem.aspectral.api.LivingEntity;
+import arvem.aspectral.power.PowerRegistry;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.hypixel.hytale.logger.HytaleLogger;
 
@@ -14,15 +14,18 @@ import java.util.List;
 
 /**
  * Represents an Aspect (like an Origin) that players can choose.
- * Each Aspect contains a list of abilities (powers) and metadata.
+ * Each Aspect references a list of power IDs and metadata.
  * Aspects are defined in JSON and loaded at runtime.
+ * <p>
+ * Unlike the old system where powers were embedded in aspects,
+ * this follows Origins' pattern where aspects reference reusable powers.
  */
 public class Aspect {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
     private final String identifier;
-    private final List<AbilityDefinition> abilityDefinitions;
+    private final List<String> powerIds; // References to powers in PowerTypeRegistry
 
     private String name;
     private String description;
@@ -37,64 +40,99 @@ public class Aspect {
      */
     public Aspect(String identifier) {
         this.identifier = identifier;
-        this.abilityDefinitions = new ArrayList<>();
+        this.powerIds = new ArrayList<>();
         this.order = Integer.MAX_VALUE;
         this.impact = 0;
         this.unchoosable = false;
     }
 
     /**
-     * Add an ability definition to this aspect.
-     * @param abilityType The type of ability
-     * @param data JSON data for configuring the ability instance
+     * Add a power reference to this aspect.
+     * @param powerId The power ID (e.g., "aspectral:launch")
      */
-    public void addAbility(AbilityType<?> abilityType, JsonObject data) {
-        abilityDefinitions.add(new AbilityDefinition(abilityType, data));
+    public void addPower(String powerId) {
+        powerIds.add(powerId);
     }
 
     /**
-     * Create all ability instances for the given entity.
+     * Create all power instances for the given entity.
      * This is called when granting an aspect to a player.
-     * @param entity The entity to create abilities for
-     * @return List of ability instances
+     * @param entity The entity to create powers for
+     * @return List of power instances
      */
-    public List<Ability> createAbilities(LivingEntity entity) {
-        List<Ability> abilities = new ArrayList<>();
-        for (AbilityDefinition def : abilityDefinitions) {
+    public List<Power> createAbilities(LivingEntity entity) {
+        List<Power> abilities = new ArrayList<>();
+        PowerRegistry powerRegistry = PowerRegistry.getInstance();
+
+        for (String powerId : powerIds) {
+            PowerDefinition def = powerRegistry.getPower(powerId);
+            if (def == null) {
+                LOGGER.atWarning().log("Power not found: %s (referenced by aspect %s)", powerId, identifier);
+                continue;
+            }
+
             try {
-                Ability ability = def.abilityType.create(entity, def.data);
-                abilities.add(ability);
+                Power power = def.powerType.create(entity, def.data);
+                abilities.add(power);
             } catch (Exception e) {
-                LOGGER.atWarning().log("Failed to create ability from type %s: %s",
-                    def.abilityType.getIdentifier(), e.getMessage());
+                LOGGER.atWarning().log("Failed to create power from power %s: %s", powerId, e.getMessage());
             }
         }
         return abilities;
     }
 
     /**
-     * Get the number of abilities in this aspect.
+     * Get the number of powers in this aspect.
      */
-    public int getAbilityCount() {
-        return abilityDefinitions.size();
+    public int getPowerCount() {
+        return powerIds.size();
     }
 
     /**
-     * Get an ability definition by index.
-     * Used for identifying abilities as "aspectId:powerIndex".
+     * Get a power ID by index.
+     * Used for identifying powers as "aspectId:powerIndex".
      */
-    public AbilityDefinition getAbilityDefinition(int index) {
-        if (index < 0 || index >= abilityDefinitions.size()) {
+    public String getPowerId(int index) {
+        if (index < 0 || index >= powerIds.size()) {
             return null;
         }
-        return abilityDefinitions.get(index);
+        return powerIds.get(index);
     }
 
     /**
-     * Get all ability definitions (immutable).
+     * Get a power definition by index.
      */
-    public List<AbilityDefinition> getAbilityDefinitions() {
-        return Collections.unmodifiableList(abilityDefinitions);
+    public PowerDefinition getPowerDefinition(int index) {
+        String powerId = getPowerId(index);
+        if (powerId == null) {
+            return null;
+        }
+        return PowerRegistry.getInstance().getPower(powerId);
+    }
+
+    /**
+     * Get all power IDs (immutable).
+     */
+    public List<String> getPowerIds() {
+        return Collections.unmodifiableList(powerIds);
+    }
+
+    /**
+     * Get all power definitions for this aspect.
+     * This resolves power IDs to their actual definitions.
+     */
+    public List<PowerDefinition> getPowerDefinitions() {
+        PowerRegistry powerRegistry = PowerRegistry.getInstance();
+        List<PowerDefinition> definitions = new ArrayList<>();
+
+        for (String powerId : powerIds) {
+            PowerDefinition def = powerRegistry.getPower(powerId);
+            if (def != null) {
+                definitions.add(def);
+            }
+        }
+
+        return Collections.unmodifiableList(definitions);
     }
 
     public String getIdentifier() {
@@ -162,8 +200,8 @@ public class Aspect {
         json.addProperty("unchoosable", unchoosable);
 
         JsonArray powersArray = new JsonArray();
-        for (AbilityDefinition def : abilityDefinitions) {
-            powersArray.add(def.abilityType.getIdentifier());
+        for (String powerId : powerIds) {
+            powersArray.add(powerId);
         }
         json.add("powers", powersArray);
 
@@ -172,20 +210,7 @@ public class Aspect {
 
     @Override
     public String toString() {
-        return "Aspect[" + identifier + ", abilities=" + abilityDefinitions.size() + "]";
-    }
-
-    /**
-     * Holds the definition of an ability within an aspect.
-     * This is the template + data, not the actual ability instance.
-     */
-    public static class AbilityDefinition {
-        public final AbilityType<?> abilityType;
-        public final JsonObject data;
-
-        public AbilityDefinition(AbilityType<?> abilityType, JsonObject data) {
-            this.abilityType = abilityType;
-            this.data = data;
-        }
+        return "Aspect[" + identifier + ", powers=" + powerIds.size() + "]";
     }
 }
+

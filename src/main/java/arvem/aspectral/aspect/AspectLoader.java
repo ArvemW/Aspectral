@@ -1,15 +1,12 @@
 package arvem.aspectral.aspect;
 
-import arvem.aspectral.AspectAbilities;
-import arvem.aspectral.abilities.AbilityType;
-import arvem.aspectral.registry.AbilityRegistry;
+import arvem.aspectral.registry.PowerTypeRegistry;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.hypixel.hytale.logger.HytaleLogger;
 
-import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,17 +16,17 @@ import java.util.stream.Stream;
 /**
  * Loads Aspect definitions from JSON files.
  * Mirrors Origins' data loading system.
+ * <p>
+ * Aspects now reference power IDs instead of embedding power definitions.
  */
 public class AspectLoader {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
     private final AspectRegistry registry;
-    private final AbilityRegistry abilityRegistry;
 
-    public AspectLoader(AspectRegistry registry, AbilityRegistry abilityRegistry) {
+    public AspectLoader(AspectRegistry registry, PowerTypeRegistry powerTypeRegistry) {
         this.registry = registry;
-        this.abilityRegistry = abilityRegistry;
     }
 
     /**
@@ -41,12 +38,6 @@ public class AspectLoader {
         LOGGER.atInfo().log("Loading aspects from: %s", aspectsDir.toAbsolutePath());
         LOGGER.atInfo().log("Directory exists: %s", Files.exists(aspectsDir));
 
-        // Debug: List all registered factories
-        var registeredFactories = abilityRegistry.getAllAbilityFactoryIds();
-        LOGGER.atInfo().log("Registered ability factories: %d", registeredFactories.size());
-        for (String factoryId : registeredFactories) {
-            LOGGER.atInfo().log("  - %s", factoryId);
-        }
 
         if (!Files.exists(aspectsDir)) {
             LOGGER.atInfo().log("Aspects directory does not exist: %s", aspectsDir);
@@ -113,13 +104,21 @@ public class AspectLoader {
 
         LOGGER.atInfo().log("Parsed aspect ID: %s", aspectId);
         Aspect aspect = parseAspect(aspectId, json);
-        LOGGER.atInfo().log("Parsed aspect with %d abilities", aspect.getAbilityCount());
+        LOGGER.atInfo().log("Parsed aspect with %d powers", aspect.getPowerCount());
         registry.register(aspect);
         LOGGER.atInfo().log("Aspect registered: %s", aspectId);
     }
 
     /**
      * Parse an Aspect from JSON.
+     * <p>
+     * New format (Origins-style):
+     * {
+     *   "powers": ["aspectral:launch", "aspectral:double_jump"],
+     *   "icon": "...",
+     *   "order": 0,
+     *   "impact": 2
+     * }
      */
     public Aspect parseAspect(String identifier, JsonObject json) {
         Aspect aspect = new Aspect(identifier);
@@ -144,50 +143,16 @@ public class AspectLoader {
             aspect.setUnchoosable(json.get("unchoosable").getAsBoolean());
         }
 
-        // Parse powers/abilities
+        // Parse powers - now just references to power IDs
         if (json.has("powers")) {
             JsonArray powersArray = json.getAsJsonArray("powers");
             for (JsonElement powerElem : powersArray) {
                 if (powerElem.isJsonPrimitive()) {
-                    // Simple string reference: just ability type ID
-                    String abilityTypeId = powerElem.getAsString();
-
-                    // Get the factory and create an AbilityType with default data
-                    var factory = abilityRegistry.getAbilityFactory(abilityTypeId);
-                    if (factory == null) {
-                        LOGGER.atWarning().log("Unknown ability factory in aspect %s: %s",
-                            identifier, abilityTypeId);
-                        continue;
-                    }
-
-                    // Create AbilityType from factory with default data
-                    var factoryInstance = factory.createDefault();
-                    AbilityType<?> abilityType = new AbilityType<>(abilityTypeId, factoryInstance);
-                    aspect.addAbility(abilityType, new JsonObject());
-
-                } else if (powerElem.isJsonObject()) {
-                    // Inline ability definition with type and data
-                    JsonObject powerJson = powerElem.getAsJsonObject();
-
-                    if (!powerJson.has("type")) {
-                        LOGGER.atWarning().log("Ability definition missing 'type' in aspect %s", identifier);
-                        continue;
-                    }
-
-                    String abilityTypeId = powerJson.get("type").getAsString();
-
-                    // Get the factory and create an AbilityType with JSON data
-                    var factory = abilityRegistry.getAbilityFactory(abilityTypeId);
-                    if (factory == null) {
-                        LOGGER.atWarning().log("Unknown ability factory in aspect %s: %s",
-                            identifier, abilityTypeId);
-                        continue;
-                    }
-
-                    // Create AbilityType from factory with JSON data
-                    var factoryInstance = factory.read(powerJson);
-                    AbilityType<?> abilityType = new AbilityType<>(abilityTypeId, factoryInstance);
-                    aspect.addAbility(abilityType, powerJson);
+                    // Power ID reference (e.g., "aspectral:launch")
+                    String powerId = powerElem.getAsString();
+                    aspect.addPower(powerId);
+                } else {
+                    LOGGER.atWarning().log("Invalid power reference in aspect %s: must be a string ID", identifier);
                 }
             }
         }
@@ -203,3 +168,5 @@ public class AspectLoader {
         loadFromDirectory(aspectsDir);
     }
 }
+
+

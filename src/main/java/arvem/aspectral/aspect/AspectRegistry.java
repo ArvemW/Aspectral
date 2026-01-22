@@ -28,7 +28,7 @@ public class AspectRegistry {
             LOGGER.atWarning().log("Overwriting existing aspect: %s", id);
         }
         aspects.put(id, aspect);
-        LOGGER.atInfo().log("Registered aspect: %s with %d abilities", id, aspect.getAbilityCount());
+        LOGGER.atInfo().log("Registered aspect: %s with %d powers", id, aspect.getPowerCount());
         LOGGER.atInfo().log("Registry size now: %d", aspects.size());
     }
 
@@ -74,3 +74,5 @@ public class AspectRegistry {
         return aspects.size();
     }
 }
+
+

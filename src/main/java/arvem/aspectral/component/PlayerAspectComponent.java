@@ -1,7 +1,7 @@
 package arvem.aspectral.component;
 
-import arvem.aspectral.AspectAbilities;
-import arvem.aspectral.abilities.Ability;
+import arvem.aspectral.AspectPowers;
+import arvem.aspectral.powers.Power;
 import arvem.aspectral.api.HytalePlayerAdapter;
 import arvem.aspectral.api.LivingEntity;
 import arvem.aspectral.aspect.Aspect;
@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  * Component that stores which Aspect a player has chosen.
- * Only stores the Aspect ID - abilities are recreated from the Aspect on load.
+ * Only stores the Aspect ID - powers are recreated from the Aspect on load.
  */
 public class PlayerAspectComponent {
 
@@ -30,17 +30,17 @@ public class PlayerAspectComponent {
     }
 
     /**
-     * Set the player's aspect and recreate all abilities.
+     * Set the player's aspect and recreate all powers.
      * @param aspectId The aspect identifier (e.g., "aspectral:skywalker")
      */
     public void setAspect(String aspectId) {
-        // Remove existing abilities
+        // Remove existing powers
         clearAbilities();
 
         // Set new aspect ID
         this.aspectId = aspectId;
 
-        // Recreate abilities from the aspect
+        // Recreate powers from the aspect
         if (aspectId != null) {
             applyAspect();
         }
@@ -61,36 +61,36 @@ public class PlayerAspectComponent {
     }
 
     /**
-     * Apply the current aspect's abilities to the player.
+     * Apply the current aspect's powers to the player.
      */
     private void applyAspect() {
         if (aspectId == null) {
             return;
         }
 
-        Aspect aspect = AspectAbilities.getInstance().getAspectRegistry().get(aspectId);
+        Aspect aspect = AspectPowers.getInstance().getAspectRegistry().get(aspectId);
         if (aspect == null) {
             LOGGER.atWarning().log("Player has unknown aspect: %s", aspectId);
             return;
         }
 
-        // Create all ability instances from the aspect
-        List<Ability> abilities = aspect.createAbilities(entity);
+        // Create all power instances from the aspect
+        List<Power> powers = aspect.createAbilities(entity);
 
-        // Add them to the ability holder
-        AbilityHolderComponent holder = AbilityHolderComponent.getOrCreate(entity);
-        for (Ability ability : abilities) {
-            holder.addAbility(ability, aspectId);
+        // Add them to the power holder
+        PowerHolderComponent holder = PowerHolderComponent.getOrCreate(entity);
+        for (Power power : powers) {
+            holder.addPower(power, aspectId);
         }
 
-        LOGGER.atInfo().log("Applied aspect %s with %d abilities to player", aspectId, abilities.size());
+        LOGGER.atInfo().log("Applied aspect %s with %d powers to player", aspectId, powers.size());
     }
 
     /**
-     * Clear all abilities from the player.
+     * Clear all powers from the player.
      */
     private void clearAbilities() {
-        AbilityHolderComponent holder = AbilityHolderComponent.get(entity);
+        PowerHolderComponent holder = PowerHolderComponent.get(entity);
         if (holder != null) {
             holder.clearAbilities();
         }
@@ -105,7 +105,7 @@ public class PlayerAspectComponent {
     }
 
     /**
-     * Called when the player joins - recreates abilities from aspect ID.
+     * Called when the player joins - recreates powers from aspect ID.
      */
     public void onPlayerJoin() {
         if (aspectId != null) {
@@ -167,13 +167,15 @@ public class PlayerAspectComponent {
      * Get the component for an entity.
      */
     public static PlayerAspectComponent get(LivingEntity entity) {
-        return AspectAbilities.getInstance().getPlayerAspectManager().get(entity);
+        return AspectPowers.getInstance().getPlayerAspectManager().get(entity);
     }
 
     /**
      * Get or create the component for an entity.
      */
     public static PlayerAspectComponent getOrCreate(LivingEntity entity) {
-        return AspectAbilities.getInstance().getPlayerAspectManager().getOrCreate(entity);
+        return AspectPowers.getInstance().getPlayerAspectManager().getOrCreate(entity);
     }
 }
+
+

@@ -23,12 +23,12 @@ public class Aspectral extends JavaPlugin {
     @Override
     protected void setup() {
         try {
-            // Initialize AspectAbilities system
-            AspectAbilities.initialize(this);
+            // Initialize AspectPowers system
+            AspectPowers.initialize(this);
 
             // Register commands
             this.getCommandRegistry().registerCommand(new AspectCommand());
-            AspectAbilities.registerCommands(this);
+            AspectPowers.registerCommands(this);
 
             LOGGER.atInfo().log("Aspectral loaded successfully!");
         } catch (Exception e) {
@@ -41,8 +41,8 @@ public class Aspectral extends JavaPlugin {
     protected void shutdown() {
         LOGGER.atInfo().log("Shutting down Aspectral...");
 
-        // Save all player abilities before shutdown
-        AspectAbilities.shutdown();
+        // Save all player powers before shutdown
+        AspectPowers.shutdown();
 
         LOGGER.atInfo().log("Aspectral shutdown complete.");
     }

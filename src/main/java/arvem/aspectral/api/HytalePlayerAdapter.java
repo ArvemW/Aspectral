@@ -67,6 +67,14 @@ public class HytalePlayerAdapter extends HytaleLivingEntityAdapter {
     }
 
     /**
+     * Get the entity reference (convenience method).
+     */
+    @Nonnull
+    public Ref<EntityStore> getRef() {
+        return getEntityRef();
+    }
+
+    /**
      * Get the player's display name.
      */
     @Nonnull
@@ -177,3 +185,4 @@ public class HytalePlayerAdapter extends HytaleLivingEntityAdapter {
         return "HytalePlayerAdapter[" + getUsername() + ", uuid=" + getUuid() + "]";
     }
 }
+

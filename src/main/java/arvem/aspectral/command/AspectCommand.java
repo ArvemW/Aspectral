@@ -1,10 +1,10 @@
 package arvem.aspectral.command;
 
-import arvem.aspectral.AspectAbilities;
-import arvem.aspectral.abilities.Ability;
+import arvem.aspectral.AspectPowers;
+import arvem.aspectral.component.PowerHolderComponent;
+import arvem.aspectral.powers.Power;
 import arvem.aspectral.api.HytalePlayerAdapter;
 import arvem.aspectral.aspect.Aspect;
-import arvem.aspectral.component.AbilityHolderComponent;
 import arvem.aspectral.component.PlayerAspectComponent;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -80,7 +80,7 @@ public class AspectCommand extends AbstractCommandCollection {
             String aspectId = aspectIdArg.get(commandContext);
 
             // Validate aspect exists
-            Aspect aspect = AspectAbilities.getInstance().getAspectRegistry().get(aspectId);
+            Aspect aspect = AspectPowers.getInstance().getAspectRegistry().get(aspectId);
             if (aspect == null) {
                 playerRef.sendMessage(Message.raw("Unknown aspect: ").color(COLOR_RED)
                         .insert(Message.raw(aspectId).color(COLOR_WHITE)));
@@ -93,7 +93,7 @@ public class AspectCommand extends AbstractCommandCollection {
             // Get or create component
             PlayerAspectComponent component = PlayerAspectComponent.getOrCreate(adapter);
 
-            // Set the aspect (this clears old abilities and creates new ones)
+            // Set the aspect (this clears old powers and creates new ones)
             component.setAspect(aspectId);
 
             playerRef.sendMessage(Message.raw("Granted aspect ").color(COLOR_GREEN)
@@ -101,8 +101,8 @@ public class AspectCommand extends AbstractCommandCollection {
                     .insert(Message.raw(" to ").color(COLOR_GREEN))
                     .insert(Message.raw(targetPlayerRef.getUsername()).color(COLOR_WHITE))
                     .insert(Message.raw(" with ").color(COLOR_GREEN))
-                    .insert(Message.raw(String.valueOf(aspect.getAbilityCount())).color(COLOR_YELLOW))
-                    .insert(Message.raw(" abilities").color(COLOR_GREEN)));
+                    .insert(Message.raw(String.valueOf(aspect.getPowerCount())).color(COLOR_YELLOW))
+                    .insert(Message.raw(" powers").color(COLOR_GREEN)));
         }
     }
 
@@ -147,7 +147,7 @@ public class AspectCommand extends AbstractCommandCollection {
         @Override
         protected void execute(@NonNull CommandContext commandContext, @NonNull Store<EntityStore> store,
                               @NonNull Ref<EntityStore> ref, @NonNull PlayerRef playerRef, @NonNull World world) {
-            var aspectRegistry = AspectAbilities.getInstance().getAspectRegistry();
+            var aspectRegistry = AspectPowers.getInstance().getAspectRegistry();
             var aspects = aspectRegistry.getAll();
 
             if (aspects.isEmpty()) {
@@ -161,8 +161,8 @@ public class AspectCommand extends AbstractCommandCollection {
                 playerRef.sendMessage(Message.raw("  - ").color(COLOR_GRAY)
                         .insert(Message.raw(aspect.getIdentifier()).color(COLOR_WHITE))
                         .insert(Message.raw(" (").color(COLOR_GRAY))
-                        .insert(Message.raw(String.valueOf(aspect.getAbilityCount())).color(COLOR_YELLOW))
-                        .insert(Message.raw(" abilities)").color(COLOR_GRAY)));
+                        .insert(Message.raw(String.valueOf(aspect.getPowerCount())).color(COLOR_YELLOW))
+                        .insert(Message.raw(" powers)").color(COLOR_GRAY)));
             }
         }
     }
@@ -191,7 +191,7 @@ public class AspectCommand extends AbstractCommandCollection {
             }
 
             String aspectId = component.getAspectId();
-            Aspect aspect = AspectAbilities.getInstance().getAspectRegistry().get(aspectId);
+            Aspect aspect = AspectPowers.getInstance().getAspectRegistry().get(aspectId);
 
             if (aspect == null) {
                 playerRef.sendMessage(Message.raw(targetPlayerRef.getUsername()).color(COLOR_WHITE)
@@ -204,22 +204,24 @@ public class AspectCommand extends AbstractCommandCollection {
                     .insert(Message.raw(" has aspect: ").color(COLOR_GRAY))
                     .insert(Message.raw(aspectId).color(COLOR_YELLOW))
                     .insert(Message.raw(" (").color(COLOR_GRAY))
-                    .insert(Message.raw(String.valueOf(aspect.getAbilityCount())).color(COLOR_WHITE))
-                    .insert(Message.raw(" abilities)").color(COLOR_GRAY)));
+                    .insert(Message.raw(String.valueOf(aspect.getPowerCount())).color(COLOR_WHITE))
+                    .insert(Message.raw(" powers)").color(COLOR_GRAY)));
 
-            // List abilities
-            AbilityHolderComponent holder = AbilityHolderComponent.get(adapter);
+            // List powers
+            PowerHolderComponent holder = PowerHolderComponent.get(adapter);
             if (holder != null) {
-                List<Ability> abilities = holder.getAbilities();
-                for (int i = 0; i < abilities.size(); i++) {
-                    Ability ability = abilities.get(i);
+                List<Power> powers = holder.getAbilities();
+                for (int i = 0; i < powers.size(); i++) {
+                    Power power = powers.get(i);
                     playerRef.sendMessage(Message.raw("    ").color(COLOR_GRAY)
                             .insert(Message.raw(String.valueOf(i)).color(COLOR_YELLOW))
                             .insert(Message.raw(": ").color(COLOR_GRAY))
-                            .insert(Message.raw(ability.getType().getIdentifier()).color(COLOR_WHITE)));
+                            .insert(Message.raw(power.getType().getIdentifier()).color(COLOR_WHITE)));
                 }
             }
         }
     }
 }
+
+
 
